@@ -8,10 +8,12 @@ const admin   = require('firebase-admin');
 /**********************
  *  Firebase 初期化
  **********************/
-const cred = JSON.parse(
-  Buffer.from(process.env.FIREBASE_CREDENTIAL_B64, 'base64')
-);
-admin.initializeApp({ credential: admin.credential.cert(cred) });
+if (!admin.apps.length) {
+  const cred = JSON.parse(
+    Buffer.from(process.env.FIREBASE_CREDENTIAL_B64, 'base64')
+  );
+  admin.initializeApp({ credential: admin.credential.cert(cred) });
+}
 const db = admin.firestore();
 
 /**********************
@@ -78,18 +80,19 @@ async function handleEvent(event) {
     return reply(event, '数字で教えてください🙏');
   }
 
-  /***** ② ここから先は通常運用（READY 時） *****/
+  /***** ② 通常運用（READY 時） *****/
   if (user.status === 'READY') {
-    // 休養日の指示
     if (text === '休養日') {
       await ref.set({ [`rest.${dateKey()}`]: true }, { merge: true });
       return reply(event, '了解です！今日はゆっくり休んでください😊');
     }
 
-    // 数字を受け取ったら日報として保存（3つまで）
     if (/^\d+$/.test(text)) {
       const path = `report.${dateKey()}`;
-      await ref.set({ [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) }, { merge: true });
+      await ref.set(
+        { [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) },
+        { merge: true }
+      );
       const arr = (await ref.get()).data().report?.[dateKey()] || [];
       if (arr.length >= 3) {
         return reply(event, `今日の報告はこれで完了です！お疲れさまでした💮`);
@@ -97,7 +100,6 @@ async function handleEvent(event) {
       return reply(event, `記録しました！（${arr.length}/3）`);
     }
 
-    // それ以外はガイド
     return reply(event, '数字か「休養日」で入力してください！');
   }
 }
