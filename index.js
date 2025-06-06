@@ -97,18 +97,16 @@ async function handleEvent(event) {
     if (/^\d+$/.test(text)) {
       const path = `report.${dateKey()}`;
     
-      // ① いまの配列長を取得
-      const current = user.report?.[dateKey()] || [];
-      const newLen  = current.length + 1;  // これから 1 件追加される
-    
-      // ② Firestore に書き込み（arrayUnion で追加）
+      // ① 追加
       await ref.set(
         { [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) },
         { merge: true }
       );
     
-      // ③ 目標達成判定
-      const target = user.dailyTarget || 3;
+      // ② ここでもう一度取得して最新の配列長を確認
+      const updatedArr = (await ref.get()).data().report?.[dateKey()] || [];
+      const newLen     = updatedArr.length;
+      const target     = user.dailyTarget || 3;
     
       if (newLen < target) {
         return reply(event, `記録しました！（${newLen}/${target}）`);
