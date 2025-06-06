@@ -95,18 +95,22 @@ async function handleEvent(event) {
       return reply(event, '了解です！今日はゆっくり休んでください😊');
     }
     if (/^\d+$/.test(text)) {
-      const path = `report.${dateKey()}`;
+      const today   = dateKey();
+      const pathKey = `report.${today}`;
+      const num     = Number(text);
     
-      // ① 追加
-      await ref.set(
-        { [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) },
-        { merge: true }
-      );
+      // ① 現在の配列を取得
+      const currentArr = user.report?.[today] || [];
     
-      // ② ここでもう一度取得して最新の配列長を確認
-      const updatedArr = (await ref.get()).data().report?.[dateKey()] || [];
-      const newLen     = updatedArr.length;
-      const target     = user.dailyTarget || 3;
+      // すでに同じ数字が入っていたら重複を避けても OK
+      const updatedArr = [...currentArr, num];
+    
+      // ② Firestore に書き戻す（配列を丸ごとセット）
+      await ref.set({ [pathKey]: updatedArr }, { merge: true });
+    
+      // ③ 配列長を判定して応答
+      const newLen = updatedArr.length;
+      const target = user.dailyTarget || 3;
     
       if (newLen < target) {
         return reply(event, `記録しました！（${newLen}/${target}）`);
