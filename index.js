@@ -94,32 +94,37 @@ async function handleEvent(event) {
       await ref.set({ [`rest.${dateKey()}`]: true }, { merge: true });
       return reply(event, '了解です！今日はゆっくり休んでください😊');
     }
-    if (/^\d+$/.test(text)) {
-      const today   = dateKey();
-      const pathKey = `report.${today}`;
-      const num     = Number(text);
-    
-      // ① 先に Firestore に追加（旧userは使わない）
-      const ref = db.collection('users').doc(uid);
-      await ref.set({
-        [pathKey]: admin.firestore.FieldValue.arrayUnion(num)
-      }, { merge: true });
-    
-      // ② 最新のデータをもう一度 get
-      const latestUser = (await ref.get()).data();
-      const updatedArr = latestUser.report?.[today] || [];
-      const newLen     = updatedArr.length;
-      const target     = latestUser.dailyTarget || 3;
-    
-      // ③ 応答メッセージを切り替え
-      if (newLen < target) {
-        return reply(event, `記録しました！（${newLen}/${target}）`);
-      } else if (newLen === target) {
-        return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
-      } else {
-        return reply(event, 'さらにやったんですか！？すごい！');
-      }
-    }
+/***** 数字メッセージ *****/
+if (/^\d+$/.test(text)) {
+  const today     = dateKey();                // 例: 2024-06-07
+  const fieldPath = `report.${today}`;        // ネストキー
+  const num       = Number(text);
+
+  // ① 常に最新のドキュメントを取得
+  const freshSnap = await ref.get();
+  const freshData = freshSnap.data() || {};
+
+  // ② 現在の配列（存在しなければ []）
+  const currentArr = freshData.report?.[today] || [];
+
+  // ③ 既に送られた数字と重複しないように追加
+  const updatedArr = [...currentArr, num];
+
+  // ④ Firestoreに上書き保存
+  await ref.set({ [fieldPath]: updatedArr }, { merge: true });
+
+  // ⑤ 目標値と比較して応答
+  const target = freshData.dailyTarget || 3;        // 必ず数値
+  const newLen = updatedArr.length;
+
+  if (newLen < target) {
+    return reply(event, `記録しました！（${newLen}/${target}）`);
+  } else if (newLen === target) {
+    return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
+  } else {
+    return reply(event, 'さらにやったんですか！？すごい！');
+  }
+}
 }
 }
 
