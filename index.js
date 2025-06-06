@@ -120,6 +120,12 @@ function reply(event, text) {
 }
 
 /**********************
+ *  remind.js の統合
+ **********************/
+const remindApp = require('./remind');
+app.use(remindApp);
+
+/**********************
  *  ローカル確認用サーバ
  **********************/
 app.listen(3000, () => {
