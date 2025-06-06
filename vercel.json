@@ -1,9 +1,18 @@
 {
-    "version": 2,
-    "builds": [
-      { "src": "index.js", "use": "@vercel/node" }
-    ],
-    "routes": [
-      { "src": "/webhook", "dest": "index.js" }
-    ]
-  }
+  "version": 2,
+  "builds": [
+    { "src": "index.js",  "use": "@vercel/node" },
+    { "src": "remind.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/webhook",   "dest": "index.js" },
+    { "src": "/remind/21", "dest": "remind.js" }
+  ],
+  "crons": [
+    {
+      "path": "/remind/21",
+      "schedule": "0 12 * * *"   // JST 21:00 → UTC 12:00
+    }
+  ]
+}
+  
