@@ -8,13 +8,21 @@ const admin   = require('firebase-admin');
 /**********************
  *  Firebase 初期化
  **********************/
-if (!admin.apps.length) {
+let firebaseApp;
+
+if (admin.apps.length === 0) {
   const cred = JSON.parse(
     Buffer.from(process.env.FIREBASE_CREDENTIAL_B64, 'base64')
   );
-  admin.initializeApp({ credential: admin.credential.cert(cred) });
+  firebaseApp = admin.initializeApp(
+    { credential: admin.credential.cert(cred) },
+    'remindApp'                    // ← 固有名を付けて重複回避
+  );
+} else {
+  firebaseApp = admin.app('remindApp'); // ← 既存 App を再利用
 }
-const db = admin.firestore();
+
+const db = firebaseApp.firestore();
 
 /**********************
  *  LINE SDK 設定
