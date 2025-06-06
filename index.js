@@ -99,19 +99,19 @@ async function handleEvent(event) {
       const pathKey = `report.${today}`;
       const num     = Number(text);
     
-      // ① 現在の配列を取得
-      const currentArr = user.report?.[today] || [];
+      // ① 先に Firestore に追加（旧userは使わない）
+      const ref = db.collection('users').doc(uid);
+      await ref.set({
+        [pathKey]: admin.firestore.FieldValue.arrayUnion(num)
+      }, { merge: true });
     
-      // すでに同じ数字が入っていたら重複を避けても OK
-      const updatedArr = [...currentArr, num];
+      // ② 最新のデータをもう一度 get
+      const latestUser = (await ref.get()).data();
+      const updatedArr = latestUser.report?.[today] || [];
+      const newLen     = updatedArr.length;
+      const target     = latestUser.dailyTarget || 3;
     
-      // ② Firestore に書き戻す（配列を丸ごとセット）
-      await ref.set({ [pathKey]: updatedArr }, { merge: true });
-    
-      // ③ 配列長を判定して応答
-      const newLen = updatedArr.length;
-      const target = user.dailyTarget || 3;
-    
+      // ③ 応答メッセージを切り替え
       if (newLen < target) {
         return reply(event, `記録しました！（${newLen}/${target}）`);
       } else if (newLen === target) {
