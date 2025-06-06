@@ -97,22 +97,29 @@ async function handleEvent(event) {
 
     if (/^\d+$/.test(text)) {
       const path = `report.${dateKey()}`;
+      const docBefore = await ref.get();
+      const oldArr = docBefore.data()?.report?.[dateKey()] || [];
+      
+      // 重複を避けるため、すでに同じ数字が入っていたらスキップ（任意）
+      if (oldArr.includes(Number(text))) {
+        return reply(event, `すでに記録済みです！（${oldArr.length}/${target}）`);
+      }
+      
+      // 書き込み（追記）
       await ref.set(
         { [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) },
         { merge: true }
       );
-      const arr = (await ref.get()).data().report?.[dateKey()] || [];
+      
+      // 再取得（正確なカウント）
+      const newArr = (await ref.get()).data()?.report?.[dateKey()] || [];
       
       const target = user.dailyTarget || 3;
-
-      if (arr.length < target) {
-        // まだ目標に達していない
-        return reply(event, `記録しました！（${arr.length}/${target}）`);
-      } else if (arr.length === target) {
-        // ちょうど目標達成
+      if (newArr.length < target) {
+        return reply(event, `記録しました！（${newArr.length}/${target}）`);
+      } else if (newArr.length === target) {
         return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
       } else {
-        // 目標を超えている
         return reply(event, 'さらにやったんですか！？すごい！');
       }
   }
