@@ -94,35 +94,30 @@ async function handleEvent(event) {
       await ref.set({ [`rest.${dateKey()}`]: true }, { merge: true });
       return reply(event, '了解です！今日はゆっくり休んでください😊');
     }
-
     if (/^\d+$/.test(text)) {
       const path = `report.${dateKey()}`;
-      const docBefore = await ref.get();
-      const oldArr = docBefore.data()?.report?.[dateKey()] || [];
-      
-      // 重複を避けるため、すでに同じ数字が入っていたらスキップ（任意）
-      if (oldArr.includes(Number(text))) {
-        return reply(event, `すでに記録済みです！（${oldArr.length}/${target}）`);
-      }
-      
-      // 書き込み（追記）
+    
+      // ① いまの配列長を取得
+      const current = user.report?.[dateKey()] || [];
+      const newLen  = current.length + 1;  // これから 1 件追加される
+    
+      // ② Firestore に書き込み（arrayUnion で追加）
       await ref.set(
         { [path]: admin.firestore.FieldValue.arrayUnion(Number(text)) },
         { merge: true }
       );
-      
-      // 再取得（正確なカウント）
-      const newArr = (await ref.get()).data()?.report?.[dateKey()] || [];
-      
+    
+      // ③ 目標達成判定
       const target = user.dailyTarget || 3;
-      if (newArr.length < target) {
-        return reply(event, `記録しました！（${newArr.length}/${target}）`);
-      } else if (newArr.length === target) {
+    
+      if (newLen < target) {
+        return reply(event, `記録しました！（${newLen}/${target}）`);
+      } else if (newLen === target) {
         return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
       } else {
         return reply(event, 'さらにやったんですか！？すごい！');
       }
-  }
+    }
 }
 }
 
