@@ -102,14 +102,21 @@ async function handleEvent(event) {
         { merge: true }
       );
       const arr = (await ref.get()).data().report?.[dateKey()] || [];
-      if (arr.length >= 3) {
-        return reply(event, `今日の報告はこれで完了です！お疲れさまでした💮`);
-      }
-      return reply(event, `記録しました！（${arr.length}/3）`);
-    }
+      
+      const target = user.dailyTarget || 3;
 
-    return reply(event, '数字か「休養日」で入力してください！');
+      if (arr.length < target) {
+        // まだ目標に達していない
+        return reply(event, `記録しました！（${arr.length}/${target}）`);
+      } else if (arr.length === target) {
+        // ちょうど目標達成
+        return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
+      } else {
+        // 目標を超えている
+        return reply(event, 'さらにやったんですか！？すごい！');
+      }
   }
+}
 }
 
 /**********************
