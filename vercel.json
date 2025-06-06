@@ -1,15 +1,20 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.js",  "use": "@vercel/node" },
-    { "src": "remind.js", "use": "@vercel/node" }
+    { "src": "index.js",      "use": "@vercel/node" },
+    { "src": "remind.js",     "use": "@vercel/node" },
+    { "src": "remindLate.js", "use": "@vercel/node" },
+    { "src": "dayCheck.js",   "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/webhook",   "dest": "/index.js"  },
-    { "src": "/remind/21", "dest": "/remind.js" }
+    { "src": "/webhook",       "dest": "/index.js"       },
+    { "src": "/remind/21",     "dest": "/remind.js"      },
+    { "src": "/remind/2330",   "dest": "/remindLate.js"  },
+    { "src": "/check/0400",    "dest": "/dayCheck.js"    }
   ],
   "crons": [
-    { "path": "/remind/21", "schedule": "0 12 * * *" }
+    { "path": "/remind/21",   "schedule": "0 12 * * *"  },
+    { "path": "/remind/2330", "schedule": "30 14 * * *" },
+    { "path": "/check/0400",  "schedule": "0 19 * * *"  }
   ]
 }
-  
