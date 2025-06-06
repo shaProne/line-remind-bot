@@ -96,30 +96,33 @@ async function handleEvent(event) {
     }
 /***** 数字メッセージ *****/
 if (/^\d+$/.test(text)) {
-  const today     = dateKey();                // 例: 2024-06-07
-  const fieldPath = `report.${today}`;        // ネストキー
-  const num       = Number(text);
+  const today = dateKey();              // 例: 2025-06-06
+  const num   = Number(text);
 
-  // ① 常に最新のドキュメントを取得
-  const freshSnap = await ref.get();
-  const freshData = freshSnap.data() || {};
+  const ref = db.collection('users').doc(uid);
 
-  // ② 現在の配列（存在しなければ []）
-  const currentArr = freshData.report?.[today] || [];
+  // 最新スナップショット取得
+  const snap = await ref.get();
+  const data = snap.data() || {};
 
-  // ③ 既に送られた数字と重複しないように追加
-  const updatedArr = [...currentArr, num];
+  const currentArr =
+    (data.report && data.report[today]) ? [...data.report[today]] : [];
 
-  // ④ Firestoreに上書き保存
-  await ref.set({ [fieldPath]: updatedArr }, { merge: true });
+  currentArr.push(num);
 
-  // ⑤ 目標値と比較して応答
-  const target = freshData.dailyTarget || 3;        // 必ず数値
-  const newLen = updatedArr.length;
+  // 正しく report map に保存
+  await ref.set({
+    report: {
+      [today]: currentArr
+    }
+  }, { merge: true });
 
-  if (newLen < target) {
-    return reply(event, `記録しました！（${newLen}/${target}）`);
-  } else if (newLen === target) {
+  const target = data.dailyTarget || 3;
+  const len = currentArr.length;
+
+  if (len < target) {
+    return reply(event, `記録しました！（${len}/${target}）`);
+  } else if (len === target) {
     return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
   } else {
     return reply(event, 'さらにやったんですか！？すごい！');
