@@ -35,9 +35,11 @@ module.exports = async (req, res) => {
 
   snap.forEach(doc => {
     const d = doc.data();
-    if (d.rest?.[today]) return;                 // 休養日
-    if ((d.report?.[today] || []).length >= 3) return; // 既に完了
-
+    const target = d.dailyTarget || 3;
+  
+    if (d.rest?.[today]) return;
+    if ((d.report?.[today] || []).length >= target) return;
+  
     tasks.push(client.pushMessage(doc.id, {
       type:'text',
       text:'アーニャ　今日の報告　待ってるます　一緒に　頑張るます！'
