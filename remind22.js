@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
 
     tasks.push(client.pushMessage(doc.id, {
       type:'text',
-      text:'22:00です！今日の学習報告はお済みですか？✍️（最大3つまで）'
+      text:'アーニャ　今日の報告　待ってるます　一緒に　頑張るます！'
     }));
   });
 
