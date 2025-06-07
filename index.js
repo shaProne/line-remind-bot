@@ -68,7 +68,7 @@ async function handleEvent(event) {
   /***** 友だち追加イベント *****/
   if (event.type === 'follow') {
     await db.collection('users').doc(uid).set({ status: 'WAIT_COUNT' });
-    return reply(event, 'こんにちは！毎日いくつのセクションを進めますか？数字で教えてください！');
+    return reply(event, '　アーニャ、　鉄壁の　お手伝いする！　毎日 なんせくしょんやるか　数字で　教えろ。　ぜんぶ　すうじだけで　送らないと　アーニャ　反応してやらない');
   }
 
   /***** テキストメッセージのみ処理 *****/
@@ -83,51 +83,58 @@ async function handleEvent(event) {
   if (user.status === 'WAIT_COUNT') {
     if (/^\d+$/.test(text)) {
       await ref.set({ dailyTarget: Number(text), status: 'READY' }, { merge: true });
-      return reply(event, `登録しました！目標は 1日 ${text} セクションですね📚`);
+      return reply(event, `了解！　一日　${text}せくしょん、一緒にがんばるます！`);
     }
-    return reply(event, '数字で教えてください🙏');
+    return reply(event, 'はげちゃびん　数字で　教えろ');
   }
 
   /***** ② 通常運用（READY 時） *****/
   if (user.status === 'READY') {
     if (text === '休養日') {
       await ref.set({ [`rest.${dateKey()}`]: true }, { merge: true });
-      return reply(event, '了解です！今日はゆっくり休んでください😊');
+      return reply(event, '遠慮するな　今日はゆっくり休め。アーニャも　あしたから　本気出す');
     }
-/***** 数字メッセージ *****/
-if (/^\d+$/.test(text)) {
-  const today = dateKey();              // 例: 2025-06-06
-  const num   = Number(text);
-
-  const ref = db.collection('users').doc(uid);
-
-  // 最新スナップショット取得
-  const snap = await ref.get();
-  const data = snap.data() || {};
-
-  const currentArr =
-    (data.report && data.report[today]) ? [...data.report[today]] : [];
-
-  currentArr.push(num);
-
-  // 正しく report map に保存
-  await ref.set({
-    report: {
-      [today]: currentArr
+    if (/^\d+$/.test(text)) {
+      const num = Number(text);
+    
+      // 🔴 範囲外チェック
+      if (num < 1 || num > 50) {
+        return reply(event, 'ないすうじ　言うな！　アーニャ　騙されない！');
+      }
+    
+      // 🟢 正常な自然数なら続行
+      const today = dateKey();
+      const ref = db.collection('users').doc(uid);
+    
+      const snap = await ref.get();
+      const data = snap.data() || {};
+    
+      const currentArr =
+        (data.report && data.report[today]) ? [...data.report[today]] : [];
+    
+      currentArr.push(num);
+    
+      await ref.set({
+        report: {
+          [today]: currentArr
+        }
+      }, { merge: true });
+    
+      const target = data.dailyTarget || 3;
+      const len = currentArr.length;
+    
+      if (len < target) {
+        return reply(event, `記録しました！（${len}/${target}）`);
+      } else if (len === target) {
+        return reply(event, 'てっぺきミッション だいせいこう！　アーニャも　嬉しい！');
+      } else {
+        return reply(event, 'もっとやったのすごい！アーニャ　びっくり！');
+      }
+    } else if (/\d/.test(text)) {
+      // 🟥 「数字が含まれてるけど自然数単体じゃない」パターン
+      return reply(event, 'しぜんすうたんたいで　報告しろ　アーニャ　反応してやらない');
     }
-  }, { merge: true });
 
-  const target = data.dailyTarget || 3;
-  const len = currentArr.length;
-
-  if (len < target) {
-    return reply(event, `記録しました！（${len}/${target}）`);
-  } else if (len === target) {
-    return reply(event, '今日の鉄壁はこれで完了ですね！お疲れさまでした💮');
-  } else {
-    return reply(event, 'さらにやったんですか！？すごい！');
-  }
-}
 }
 }
 
