@@ -68,7 +68,7 @@ async function handleEvent(event) {
   /***** 友だち追加イベント *****/
   if (event.type === 'follow') {
     await db.collection('users').doc(uid).set({ status: 'WAIT_COUNT' });
-    return reply(event, 'アーニャ、　鉄壁の　お手伝いする！　毎日 なんせくしょんやるか　数字で　教えろ。　ぜんぶ　すうじだけで　送らないと　アーニャ　反応してやらない');
+    return reply(event, 'アーニャ、　鉄壁の　お手伝いする！　まいにち なんせくしょんやるか　すうじで　教えろ。　ぜんぶ　すうじだけで　送らないと　アーニャ　反応してやらない');
   }
 
   /***** テキストメッセージのみ処理 *****/
@@ -85,7 +85,7 @@ async function handleEvent(event) {
       await ref.set({ dailyTarget: Number(text), status: 'READY' }, { merge: true });
       return reply(event, `アーニャ　了解！　一日　${text}せくしょん、一緒にがんばるます！`);
     }
-    return reply(event, 'はげちゃびん　数字で　教えろ');
+    return reply(event, 'はげちゃびん　すうじで　教えろ');
   }
 
   /***** ② 通常運用（READY 時） *****/
