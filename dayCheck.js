@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
 
     tasks.push(client.pushMessage(doc.id, {
       type:'text',
-      text:`昨日（${yesterday}）の報告が提出されていませんでした😢`
+      text:`昨日、報告なかった。アーニャ、しょんぼり。勉強しなくても　テストできるの　アーニャだけ。今日は一緒に　がんばるます！`
     }));
   });
 
