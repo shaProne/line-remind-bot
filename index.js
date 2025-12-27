@@ -51,6 +51,14 @@ const dateKey = () => {
                         : now.format('YYYY-MM-DD');
 };
 
+
+const studyDateKey = (d = dayjs()) => {
+  const t = d.tz('Asia/Tokyo');
+  const base = t.hour() < 4 ? t.subtract(1, 'day') : t;
+  return base.format('YYYY-MM-DD');
+};
+
+
 /**********************
  *  Webhook エンドポイント
  **********************/
@@ -91,8 +99,14 @@ async function handleEvent(event) {
   /***** ② 通常運用（READY 時） *****/
   if (user.status === 'READY') {
     if (text === '休養日') {
-      await ref.set({ [`rest.${dateKey()}`]: true }, { merge: true });
-      return reply(event, '遠慮するな　今日はゆっくり休め。アーニャも　あしたから　本気出す');
+      const key = studyDateKey(); // ← 4:00 区切りの「勉強日」
+
+      await ref.set({ [`rest.${key}`]: true }, { merge: true });
+
+      return reply(
+        event,
+        '遠慮するな　今日はゆっくり休め。アーニャも　あしたから　本気出す'
+    );
     }
     if (/^\d+$/.test(text)) {
       const num = Number(text);

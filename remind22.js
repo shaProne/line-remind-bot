@@ -28,23 +28,35 @@ const dateKey = () => {
                         : now.format('YYYY-MM-DD');
 };
 
+
+const studyDateKey = (d = dayjs()) => {
+  const t = d.tz('Asia/Tokyo');
+  const base = t.hour() < 4 ? t.subtract(1, 'day') : t;
+  return base.format('YYYY-MM-DD');
+};
+
+
 module.exports = async (req, res) => {
   const today = dateKey();
   const snap  = await db.collection('users').where('status','==','READY').get();
   const tasks = [];
 
-  snap.forEach(doc => {
-    const d = doc.data();
-    const target = d.dailyTarget || 3;
+snap.forEach(doc => {
+  const d = doc.data();
+  const target = d.dailyTarget || 3;
+
+  // ★ ここを修正：Flatten された rest.日付 を見る
+  const restFieldName = `rest.${today}`;
+  if (d[restFieldName]) return;
+
+  if ((d.report?.[today] || []).length >= target) return;
   
-    if (d.rest?.[today]) return;
-    if ((d.report?.[today] || []).length >= target) return;
-  
-    tasks.push(client.pushMessage(doc.id, {
-      type:'text',
-      text:'アーニャ　今日の報告　待ってるます　一緒に　頑張るます！'
-    }));
-  });
+  tasks.push(client.pushMessage(doc.id, {
+    type:'text',
+    text:'アーニャ　今日の報告　待ってるます　一緒に　頑張るます！'
+  }));
+});
+
 
   await Promise.allSettled(tasks);
   res.status(200).json({ remind22Sent: tasks.length });

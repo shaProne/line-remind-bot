@@ -22,8 +22,28 @@ require('dayjs/plugin/timezone');
 dayjs.extend(require('dayjs/plugin/utc'));
 dayjs.extend(require('dayjs/plugin/timezone'));
 
-const todayKey  = () => dayjs().tz('Asia/Tokyo').format('YYYY-MM-DD');
-const yestKey   = () => dayjs().tz('Asia/Tokyo').subtract(1,'day').format('YYYY-MM-DD');
+/**
+ * 4:00 区切りの「勉強日キー」を返す
+ * d が省略されたら「今」の勉強日
+ */
+const studyDateKey = (d = dayjs()) => {
+  const t = d.tz('Asia/Tokyo');
+  const base = t.hour() < 4 ? t.subtract(1, 'day') : t;
+  return base.format('YYYY-MM-DD');
+};
+
+const todayKey = () => studyDateKey();
+
+/**
+ * 「昨日の勉強日キー」
+ * 4:00 の dayCheck から見て、1 日前の勉強日
+ */
+const yestKey = () => {
+  const now = dayjs().tz('Asia/Tokyo');
+  const y = now.subtract(1, 'day');
+  return studyDateKey(y);
+};
+
 
 module.exports = async (req, res) => {
   const yesterday = yestKey();
@@ -32,8 +52,14 @@ module.exports = async (req, res) => {
   const tasks = [];
   snap.forEach(doc => {
     const d = doc.data();
-    if (d.rest?.[yesterday]) return;             // 休養日なら無視
-    if ((d.report?.[yesterday] || []).length) return; // 何か報告あれば無視
+
+    // ★ 休養日チェック（rest は map 前提）
+  const restFieldName = `rest.${yesterday}`;
+  if (d[restFieldName]) return;
+    
+
+    // ★ 報告あればスキップ
+    if ((d.report?.[yesterday] || []).length) return;
 
     tasks.push(client.pushMessage(doc.id, {
       type:'text',
