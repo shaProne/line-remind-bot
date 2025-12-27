@@ -107,20 +107,26 @@ async function handleEvent(event) {
   const user     = doc.exists ? doc.data() : {};
 
   /***** ① 初回：セクション数登録 *****/
-  if (user.status === 'WAIT_COUNT') {
-    if (/^\d+$/.test(text)) {
-      await userRef.set(
-        { dailyTarget: Number(text), status: 'READY' },
-        { merge: true }
-      );
-      return reply(
-        event,
-        `承知いたしました。一日${text}セクションですね？この私が一緒にやるのですから、決して怠けないように。`
-      );
-    }
-    return reply(event, '数字で申告を、と言いましたわよね？指示に従いなさい。');
+if (user.status === 'WAIT_COUNT') {
+  if (/^\d+$/.test(text)) {
+    const today = dateKey();
+    await userRef.set(
+      {
+        dailyTarget: Number(text),
+        status: 'READY',
+        report: {
+          [today]: []   // 今日のカウントをリセット
+        }
+      },
+      { merge: true }
+    );
+    return reply(
+      event,
+      `承知いたしました。一日${text}ですね？この私が一緒にやるのですから、決して怠けないように。`
+    );
   }
-
+  return reply(event, '数字で申告を、と言いましたわよね？指示に従いなさい。');
+}
   /***** ② 通常運用（READY 時） *****/
   if (user.status === 'READY') {
     // 休養日
