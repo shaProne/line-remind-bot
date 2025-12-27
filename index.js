@@ -99,7 +99,7 @@ async function handleEvent(event) {
   }
 
   /***** ② 通常運用（READY 時） *****/
-  if (user.status === 'READY') {
+    if (user.status === 'READY') {
     if (text === '休養日') {
       const key = studyDateKey(); // ← 4:00 区切りの「勉強日」
 
@@ -108,50 +108,66 @@ async function handleEvent(event) {
       return reply(
         event,
         'わかりました、今日は休みなさい。誰にでも調子の出ない日はあります。ですが明日は倍にして返しなさい。もちろん分かってますよね？'
-    );
+      );
     }
+
     if (/^\d+$/.test(text)) {
       const num = Number(text);
-    
+
       // 🔴 範囲外チェック
       if (num < 1 || num > 50) {
-        return reply(event, '鉄壁はセクション50までだったと記憶しております。どういうつもりでしょうか？');
+        return reply(
+          event,
+          '鉄壁はセクション50までだったと記憶しております。どういうつもりでしょうか？'
+        );
       }
-    
+
       // 🟢 正常な自然数なら続行
       const today = dateKey();
-      const ref = db.collection('users').doc(uid);
-    
-      const snap = await ref.get();
-      const data = snap.data() || {};
-    
-      const currentArr =
-        (data.report && data.report[today]) ? [...data.report[today]] : [];
-    
+
+      // ★ ここを user から取るように
+      const data = user || {};
+
+      const currentArr = (data.report?.[today] || []).slice(); // 配列コピー
       currentArr.push(num);
-    
-      await ref.set({
-        report: {
-          [today]: currentArr
-        }
-      }, { merge: true });
-    
+
+      await ref.set(
+        {
+          report: {
+            [today]: currentArr
+          }
+        },
+        { merge: true }
+      );
+
       const target = data.dailyTarget || 3;
       const len = currentArr.length;
-    
+
       if (len < target) {
-        return reply(event, `報告、ご苦労さまです。その調子で続けなさい。（${len}/${target}）`);
+        return reply(
+          event,
+          `報告、ご苦労さまです。その調子で続けなさい。（${len}/${target}）`
+        );
       } else if (len === target) {
-        return reply(event, '本日の目標、しっかりと達成できましたね。努力を積み重ねる姿勢は評価に値します。引き続き、この調子で取り組みなさい。');
+        return reply(
+          event,
+          '本日の目標、しっかりと達成できましたね。努力を積み重ねる姿勢は評価に値します。引き続き、この調子で取り組みなさい。'
+        );
       } else {
-        return reply(event, '頑張りましたね。少し見直しました。その調子で励みなさい。');
+        return reply(
+          event,
+          '頑張りましたね。少し見直しました。その調子で励みなさい。'
+        );
       }
     } else if (/\d/.test(text)) {
       // 🟥 「数字が含まれてるけど自然数単体じゃない」パターン
-      return reply(event, '数字のみで報告、と言ったはずです。指示に従いなさい。');
+      return reply(
+        event,
+        '数字のみで報告、と言ったはずです。指示に従いなさい。'
+      );
     }
+  }
 
-}
 }
 
 /**********************
