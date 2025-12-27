@@ -5,8 +5,10 @@ const express = require('express');
 const line    = require('@line/bot-sdk');
 const admin   = require('firebase-admin');
 const dayjs   = require('dayjs');
+
 require('dayjs/locale/ja');
-dayjs.locale('ja');
+require('dayjs/plugin/utc');
+require('dayjs/plugin/timezone');
 dayjs.extend(require('dayjs/plugin/utc'));
 dayjs.extend(require('dayjs/plugin/timezone'));
 
@@ -16,12 +18,17 @@ dayjs.extend(require('dayjs/plugin/timezone'));
 let firebaseApp;
 
 if (admin.apps.length === 0) {
-  const cred = JSON.parse(
-    Buffer.from(process.env.FIREBASE_CREDENTIAL_B64, 'base64')
-  );
+  const credB64 = process.env.FIREBASE_CREDENTIAL_B64;
+  if (!credB64) {
+    throw new Error('FIREBASE_CREDENTIAL_B64 が設定されていません');
+  }
+
+  const credJson = Buffer.from(credB64, 'base64').toString('utf8');
+  const cred = JSON.parse(credJson);
+
   firebaseApp = admin.initializeApp(
     { credential: admin.credential.cert(cred) },
-    'remindApp' // 固有名
+    'remindApp'
   );
 } else {
   firebaseApp = admin.app('remindApp');
@@ -34,19 +41,20 @@ const db = firebaseApp.firestore();
  **********************/
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-  channelSecret:      process.env.LINE_CHANNEL_SECRET,
+  channelSecret:      process.env.LINE_CHANNEL_SECRET
 };
 
 const client = new line.Client(config);
 const app    = express();
 
 /**********************
- *  日付キー（JST4:00区切り）
+ *  日付キーヘルパ
  **********************/
 const dateKey = () => {
   const now = dayjs().tz('Asia/Tokyo');
-  const base = now.hour() < 4 ? now.subtract(1, 'day') : now;
-  return base.format('YYYY-MM-DD');
+  return now.hour() < 4
+    ? now.subtract(1, 'day').format('YYYY-MM-DD')
+    : now.format('YYYY-MM-DD');
 };
 
 const studyDateKey = (d = dayjs()) => {
@@ -62,10 +70,15 @@ app.post('/webhook', line.middleware(config), async (req, res) => {
   try {
     await Promise.all(req.body.events.map(handleEvent));
     res.status(200).send('OK');
-  } catch (err) {
-    console.error('Webhook error:', err);
-    res.status(500).end();
+  } catch (e) {
+    console.error('handleEvent error', e);
+    res.status(500).send('Error');
   }
+});
+
+// 動作確認用（ブラウザで / を開いたとき）
+app.get('/', (req, res) => {
+  res.status(200).send('LINE Remind Bot is running.');
 });
 
 /**********************
@@ -76,10 +89,9 @@ async function handleEvent(event) {
 
   // 友だち追加
   if (event.type === 'follow') {
-    await db.collection('users').doc(uid).set(
-      { status: 'WAIT_COUNT' },
-      { merge: true }
-    );
+    const userRef = db.collection('users').doc(uid);
+    await userRef.set({ status: 'WAIT_COUNT' }, { merge: true });
+
     return reply(
       event,
       '鉄壁の学習サポート、私がして差し上げます。毎日、やったセクションを数字で報告なさい。余計な絵文字などは不要です。'
@@ -90,30 +102,23 @@ async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return;
 
   const text = event.message.text.trim();
-  const userRef = db.collection('users').doc(uid);
-  const snap    = await userRef.get();
-  const user    = snap.exists ? snap.data() : {};
+  const userRef  = db.collection('users').doc(uid);
+  const doc      = await userRef.get();
+  const user     = doc.exists ? doc.data() : {};
 
   /***** ① 初回：セクション数登録 *****/
   if (user.status === 'WAIT_COUNT') {
     if (/^\d+$/.test(text)) {
-      const target = Number(text);
       await userRef.set(
-        {
-          dailyTarget: target,
-          status: 'READY',
-        },
+        { dailyTarget: Number(text), status: 'READY' },
         { merge: true }
       );
       return reply(
         event,
-        `承知いたしました。一日${target}ですね？この私が一緒にやるのですから、決して怠けないように。`
+        `承知いたしました。一日${text}ですね？この私が一緒にやるのですから、決して怠けないように。`
       );
     }
-    return reply(
-      event,
-      '数字で申告を、と言いましたわよね？指示に従いなさい。'
-    );
+    return reply(event, '数字で申告を、と言いましたわよね？指示に従いなさい。');
   }
 
   /***** ② 通常運用（READY 時） *****/
@@ -121,21 +126,18 @@ async function handleEvent(event) {
     // 休養日
     if (text === '休養日') {
       const key = studyDateKey();
-      await userRef.set(
-        { [`rest.${key}`]: true },
-        { merge: true }
-      );
+      await userRef.set({ [`rest.${key}`]: true }, { merge: true });
+
       return reply(
         event,
         'わかりました、今日は休みなさい。誰にでも調子の出ない日はあります。ですが明日は倍にして返しなさい。もちろん分かってますよね？'
       );
     }
 
-    // 数字だけのメッセージ（セクション報告）
+    // 数字だけのメッセージ
     if (/^\d+$/.test(text)) {
       const num = Number(text);
 
-      // 範囲外チェック
       if (num < 1 || num > 50) {
         return reply(
           event,
@@ -144,24 +146,23 @@ async function handleEvent(event) {
       }
 
       const today = dateKey();
-      const data  = user || {};
-      const currentArr = data.report?.[today]
-        ? [...data.report[today]]
-        : [];
+      const data = user || {};
 
+      const currentArr = (data.report?.[today] || []).slice();
       currentArr.push(num);
 
       await userRef.set(
         {
           report: {
-            [today]: currentArr,
-          },
+            ...(data.report || {}),
+            [today]: currentArr
+          }
         },
         { merge: true }
       );
 
       const target = data.dailyTarget || 3;
-      const len    = currentArr.length;
+      const len = currentArr.length;
 
       if (len < target) {
         return reply(
@@ -181,7 +182,7 @@ async function handleEvent(event) {
       }
     }
 
-    // 数字が混ざっているが、数字だけではない
+    // 数字が入っているが、数字だけではない
     if (/\d/.test(text)) {
       return reply(
         event,
@@ -190,7 +191,7 @@ async function handleEvent(event) {
     }
   }
 
-  // ここまで来たら何もしない（既読スルー）
+  // それ以外は特に何もしない
   return;
 }
 
@@ -198,23 +199,10 @@ async function handleEvent(event) {
  *  返信ヘルパ
  **********************/
 function reply(event, text) {
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text,
-  });
+  return client.replyMessage(event.replyToken, { type: 'text', text });
 }
 
 /**********************
- *  remind.js の統合
+ *  Vercel では app を export
  **********************/
-const remindApp = require('./remind');
-app.use(remindApp);
-
-/**********************
- *  ローカル確認用サーバ
- **********************/
-app.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
-});
-
-module.exports = app; // Vercel 等で使う場合用
+module.exports = app;
