@@ -4,6 +4,11 @@
 const express = require('express');
 const line    = require('@line/bot-sdk');
 const admin   = require('firebase-admin');
+const dayjs   = require('dayjs');
+require('dayjs/locale/ja');
+dayjs.locale('ja');
+dayjs.extend(require('dayjs/plugin/utc'));
+dayjs.extend(require('dayjs/plugin/timezone'));
 
 /**********************
  *  Firebase 初期化
@@ -16,10 +21,10 @@ if (admin.apps.length === 0) {
   );
   firebaseApp = admin.initializeApp(
     { credential: admin.credential.cert(cred) },
-    'remindApp'                    // ← 固有名を付けて重複回避
+    'remindApp' // 固有名
   );
 } else {
-  firebaseApp = admin.app('remindApp'); // ← 既存 App を再利用
+  firebaseApp = admin.app('remindApp');
 }
 
 const db = firebaseApp.firestore();
@@ -29,28 +34,20 @@ const db = firebaseApp.firestore();
  **********************/
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-  channelSecret:      process.env.LINE_CHANNEL_SECRET
+  channelSecret:      process.env.LINE_CHANNEL_SECRET,
 };
 
 const client = new line.Client(config);
 const app    = express();
 
 /**********************
- *  日付キーを JST4:00 起点で作るヘルパ
+ *  日付キー（JST4:00区切り）
  **********************/
-const dayjs = require('dayjs');
-require('dayjs/locale/ja');
-require('dayjs/plugin/utc');
-require('dayjs/plugin/timezone');
-dayjs.extend(require('dayjs/plugin/utc'));
-dayjs.extend(require('dayjs/plugin/timezone'));
-
 const dateKey = () => {
   const now = dayjs().tz('Asia/Tokyo');
-  return now.hour() < 4 ? now.subtract(1, 'day').format('YYYY-MM-DD')
-                        : now.format('YYYY-MM-DD');
+  const base = now.hour() < 4 ? now.subtract(1, 'day') : now;
+  return base.format('YYYY-MM-DD');
 };
-
 
 const studyDateKey = (d = dayjs()) => {
   const t = d.tz('Asia/Tokyo');
@@ -58,13 +55,17 @@ const studyDateKey = (d = dayjs()) => {
   return base.format('YYYY-MM-DD');
 };
 
-
 /**********************
  *  Webhook エンドポイント
  **********************/
 app.post('/webhook', line.middleware(config), async (req, res) => {
-  await Promise.all(req.body.events.map(handleEvent));
-  res.status(200).send('OK');
+  try {
+    await Promise.all(req.body.events.map(handleEvent));
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).end();
+  }
 });
 
 /**********************
@@ -73,48 +74,68 @@ app.post('/webhook', line.middleware(config), async (req, res) => {
 async function handleEvent(event) {
   const uid = event.source.userId;
 
-  /***** 友だち追加イベント *****/
+  // 友だち追加
   if (event.type === 'follow') {
-    await db.collection('users').doc(uid).set({ status: 'WAIT_COUNT' });
-    return reply(event, '鉄壁の学習サポート、私がして差し上げます。毎日、やったセクションを数字で報告なさい。余計な絵文字などは不要です。');
+    await db.collection('users').doc(uid).set(
+      { status: 'WAIT_COUNT' },
+      { merge: true }
+    );
+    return reply(
+      event,
+      '鉄壁の学習サポート、私がして差し上げます。毎日、やったセクションを数字で報告なさい。余計な絵文字などは不要です。'
+    );
   }
 
-  /***** テキストメッセージのみ処理 *****/
+  // テキストメッセージ以外は無視
   if (event.type !== 'message' || event.message.type !== 'text') return;
 
   const text = event.message.text.trim();
-  const ref  = db.collection('users').doc(uid);
-  const doc  = await ref.get();
-  const user = doc.exists ? doc.data() : {};
+  const userRef = db.collection('users').doc(uid);
+  const snap    = await userRef.get();
+  const user    = snap.exists ? snap.data() : {};
 
   /***** ① 初回：セクション数登録 *****/
   if (user.status === 'WAIT_COUNT') {
     if (/^\d+$/.test(text)) {
-      await ref.set({ dailyTarget: Number(text), status: 'READY' }, { merge: true });
-      return reply(event, `承知いたしました。一日${text}ですね？この私が一緒にやるのですから、決して怠けないように。`
-
+      const target = Number(text);
+      await userRef.set(
+        {
+          dailyTarget: target,
+          status: 'READY',
+        },
+        { merge: true }
+      );
+      return reply(
+        event,
+        `承知いたしました。一日${target}ですね？この私が一緒にやるのですから、決して怠けないように。`
       );
     }
-    return reply(event, '数字で申告を、と言いましたわよね？指示に従いなさい。');
+    return reply(
+      event,
+      '数字で申告を、と言いましたわよね？指示に従いなさい。'
+    );
   }
 
   /***** ② 通常運用（READY 時） *****/
-    if (user.status === 'READY') {
+  if (user.status === 'READY') {
+    // 休養日
     if (text === '休養日') {
-      const key = studyDateKey(); // ← 4:00 区切りの「勉強日」
-
-      await ref.set({ [`rest.${key}`]: true }, { merge: true });
-
+      const key = studyDateKey();
+      await userRef.set(
+        { [`rest.${key}`]: true },
+        { merge: true }
+      );
       return reply(
         event,
         'わかりました、今日は休みなさい。誰にでも調子の出ない日はあります。ですが明日は倍にして返しなさい。もちろん分かってますよね？'
       );
     }
 
+    // 数字だけのメッセージ（セクション報告）
     if (/^\d+$/.test(text)) {
       const num = Number(text);
 
-      // 🔴 範囲外チェック
+      // 範囲外チェック
       if (num < 1 || num > 50) {
         return reply(
           event,
@@ -122,26 +143,25 @@ async function handleEvent(event) {
         );
       }
 
-      // 🟢 正常な自然数なら続行
       const today = dateKey();
+      const data  = user || {};
+      const currentArr = data.report?.[today]
+        ? [...data.report[today]]
+        : [];
 
-      // ★ ここを user から取るように
-      const data = user || {};
-
-      const currentArr = (data.report?.[today] || []).slice(); // 配列コピー
       currentArr.push(num);
 
-      await ref.set(
+      await userRef.set(
         {
           report: {
-            [today]: currentArr
-          }
+            [today]: currentArr,
+          },
         },
         { merge: true }
       );
 
       const target = data.dailyTarget || 3;
-      const len = currentArr.length;
+      const len    = currentArr.length;
 
       if (len < target) {
         return reply(
@@ -159,8 +179,10 @@ async function handleEvent(event) {
           '頑張りましたね。少し見直しました。その調子で励みなさい。'
         );
       }
-    } else if (/\d/.test(text)) {
-      // 🟥 「数字が含まれてるけど自然数単体じゃない」パターン
+    }
+
+    // 数字が混ざっているが、数字だけではない
+    if (/\d/.test(text)) {
       return reply(
         event,
         '数字のみで報告、と言ったはずです。指示に従いなさい。'
@@ -168,13 +190,18 @@ async function handleEvent(event) {
     }
   }
 
+  // ここまで来たら何もしない（既読スルー）
+  return;
 }
 
 /**********************
  *  返信ヘルパ
  **********************/
 function reply(event, text) {
-  return client.replyMessage(event.replyToken, { type: 'text', text });
+  return client.replyMessage(event.replyToken, {
+    type: 'text',
+    text,
+  });
 }
 
 /**********************
@@ -189,3 +216,5 @@ app.use(remindApp);
 app.listen(3000, () => {
   console.log('Server running at http://localhost:3000');
 });
+
+module.exports = app; // Vercel 等で使う場合用
