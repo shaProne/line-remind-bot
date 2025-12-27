@@ -63,7 +63,7 @@ module.exports = async (req, res) => {
 
     tasks.push(client.pushMessage(doc.id, {
       type:'text',
-      text:`昨日　報告なかった。アーニャ　しょんぼり。勉強しなくても　テストできるの　アーニャのちちだけ。今日は一緒に　がんばるます！`
+      text:`昨日、報告が確認できませんでした。あなたが努力を怠ると、誰よりも早く成績に出ます。本日は必ず達成し、報告しなさい。`
     }));
   });
 

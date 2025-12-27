@@ -53,7 +53,7 @@ snap.forEach(doc => {
   
   tasks.push(client.pushMessage(doc.id, {
     type:'text',
-    text:'アーニャ　今日の報告　待ってるます　一緒に　頑張るます！'
+    text:'本日の報告、お待ちしております。終わったら教えてくださいね。'
   }));
 });
 
