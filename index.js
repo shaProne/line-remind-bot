@@ -115,7 +115,7 @@ async function handleEvent(event) {
       );
       return reply(
         event,
-        `承知いたしました。一日${text}ですね？この私が一緒にやるのですから、決して怠けないように。`
+        `承知いたしました。一日${text}セクションですね？この私が一緒にやるのですから、決して怠けないように。`
       );
     }
     return reply(event, '数字で申告を、と言いましたわよね？指示に従いなさい。');
